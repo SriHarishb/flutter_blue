@@ -1,7 +1,3 @@
-// Copyright 2017, Paul DeMarco.
-// All rights reserved. Use of this source code is governed by a
-// BSD-style license that can be found in the LICENSE file.
-
 package com.pauldemarco.flutter_blue;
 
 import android.annotation.TargetApi;
@@ -14,9 +10,7 @@ import android.bluetooth.BluetoothProfile;
 import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanResult;
 import android.os.Build;
-import android.os.Parcel;
 import android.os.ParcelUuid;
-import android.util.Log;
 import android.util.SparseArray;
 
 import com.google.protobuf.ByteString;
@@ -32,7 +26,17 @@ import java.util.UUID;
 
 public class ProtoMaker {
 
-    private static final UUID CCCD_UUID = UUID.fromString("000002902-0000-1000-8000-00805f9b34fb");
+    private static final UUID CCCD_UUID = validateUUID("00002902-0000-1000-8000-00805f9b34fb");
+
+    // Method to validate UUID strings
+    private static UUID validateUUID(String uuid) {
+        try {
+            return UUID.fromString(uuid);
+        } catch (IllegalArgumentException e) {
+            // Handle invalid UUIDs by generating a new one
+            return UUID.nameUUIDFromBytes(uuid.getBytes());
+        }
+    }
 
     static Protos.ScanResult from(BluetoothDevice device, byte[] advertisementData, int rssi) {
         Protos.ScanResult.Builder p = Protos.ScanResult.newBuilder();
@@ -78,13 +82,13 @@ public class ProtoMaker {
             for (Map.Entry<ParcelUuid, byte[]> entry : serviceData.entrySet()) {
                 ParcelUuid key = entry.getKey();
                 byte[] value = entry.getValue();
-                a.putServiceData(key.getUuid().toString(), ByteString.copyFrom(value));
+                a.putServiceData(validateUUID(key.getUuid().toString()).toString(), ByteString.copyFrom(value));
             }
             // Service UUIDs
             List<ParcelUuid> serviceUuids = scanRecord.getServiceUuids();
             if(serviceUuids != null) {
                 for (ParcelUuid s : serviceUuids) {
-                    a.addServiceUuids(s.getUuid().toString());
+                    a.addServiceUuids(validateUUID(s.getUuid().toString()).toString());
                 }
             }
         }
@@ -120,7 +124,7 @@ public class ProtoMaker {
     static Protos.BluetoothService from(BluetoothDevice device, BluetoothGattService service, BluetoothGatt gatt) {
         Protos.BluetoothService.Builder p = Protos.BluetoothService.newBuilder();
         p.setRemoteId(device.getAddress());
-        p.setUuid(service.getUuid().toString());
+        p.setUuid(validateUUID(service.getUuid().toString()).toString());
         p.setIsPrimary(service.getType() == BluetoothGattService.SERVICE_TYPE_PRIMARY);
         for(BluetoothGattCharacteristic c : service.getCharacteristics()) {
             p.addCharacteristics(from(device, c, gatt));
@@ -134,7 +138,7 @@ public class ProtoMaker {
     static Protos.BluetoothCharacteristic from(BluetoothDevice device, BluetoothGattCharacteristic characteristic, BluetoothGatt gatt) {
         Protos.BluetoothCharacteristic.Builder p = Protos.BluetoothCharacteristic.newBuilder();
         p.setRemoteId(device.getAddress());
-        p.setUuid(characteristic.getUuid().toString());
+        p.setUuid(validateUUID(characteristic.getUuid().toString()).toString());
         p.setProperties(from(characteristic.getProperties()));
         if(characteristic.getValue() != null)
             p.setValue(ByteString.copyFrom(characteristic.getValue()));
@@ -142,14 +146,14 @@ public class ProtoMaker {
             p.addDescriptors(from(device, d));
         }
         if(characteristic.getService().getType() == BluetoothGattService.SERVICE_TYPE_PRIMARY) {
-            p.setServiceUuid(characteristic.getService().getUuid().toString());
+            p.setServiceUuid(validateUUID(characteristic.getService().getUuid().toString()).toString());
         } else {
             // Reverse search to find service
             for(BluetoothGattService s : gatt.getServices()) {
                 for(BluetoothGattService ss : s.getIncludedServices()) {
                     if(ss.getUuid().equals(characteristic.getService().getUuid())){
-                        p.setServiceUuid(s.getUuid().toString());
-                        p.setSecondaryServiceUuid(ss.getUuid().toString());
+                        p.setServiceUuid(validateUUID(s.getUuid().toString()).toString());
+                        p.setSecondaryServiceUuid(validateUUID(ss.getUuid().toString()).toString());
                         break;
                     }
                 }
@@ -161,9 +165,9 @@ public class ProtoMaker {
     static Protos.BluetoothDescriptor from(BluetoothDevice device, BluetoothGattDescriptor descriptor) {
         Protos.BluetoothDescriptor.Builder p = Protos.BluetoothDescriptor.newBuilder();
         p.setRemoteId(device.getAddress());
-        p.setUuid(descriptor.getUuid().toString());
-        p.setCharacteristicUuid(descriptor.getCharacteristic().getUuid().toString());
-        p.setServiceUuid(descriptor.getCharacteristic().getService().getUuid().toString());
+        p.setUuid(validateUUID(descriptor.getUuid().toString()).toString());
+        p.setCharacteristicUuid(validateUUID(descriptor.getCharacteristic().getUuid().toString()).toString());
+        p.setServiceUuid(validateUUID(descriptor.getCharacteristic().getService().getUuid().toString()).toString());
         if(descriptor.getValue() != null)
             p.setValue(ByteString.copyFrom(descriptor.getValue()));
         return p.build();
